@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Do'kon</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  body{margin:0;padding:12px;font-family:-apple-system,Segoe UI,Roboto,sans-serif;
+       background:var(--tg-theme-bg-color,#fff);color:var(--tg-theme-text-color,#000)}
+  .tabs{display:flex;gap:8px;margin-bottom:12px}
+  .tab{flex:1;padding:10px 4px;border-radius:12px;text-align:center;font-size:14px;
+       background:var(--tg-theme-secondary-bg-color,#eee);cursor:pointer}
+  .tab.on{background:var(--tg-theme-button-color,#2481cc);color:var(--tg-theme-button-text-color,#fff)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .card{padding:14px 10px;border-radius:14px;border:2px solid transparent;cursor:pointer;
+        background:var(--tg-theme-secondary-bg-color,#f2f2f2)}
+  .card.on{border-color:var(--tg-theme-button-color,#2481cc)}
+  .card b{display:block;margin-bottom:4px}
+  .card span{font-size:13px;opacity:.7}
+  input{width:100%;box-sizing:border-box;margin-top:14px;padding:12px;font-size:16px;border-radius:12px;
+        border:1px solid #8884;background:var(--tg-theme-secondary-bg-color,#fff);color:inherit}
+  .err{color:#e53935;font-size:13px;margin-top:6px;min-height:16px}
+</style>
+</head>
+<body>
+<div class="tabs" id="tabs"></div>
+<div class="grid" id="grid"></div>
+<input id="rcpt" placeholder="@username" autocomplete="off">
+<div class="err" id="err"></div>
+<script>
+const tg = Telegram.WebApp; tg.ready(); tg.expand();
+const NAMES = {stars:"⭐ Stars", premium:"💎 Premium", ton:"💠 TON"};
+let items = [], kind = "stars", sel = null;
+
+try {
+  const b64 = new URLSearchParams(location.search).get("c").replace(/-/g,"+").replace(/_/g,"/");
+  const bytes = Uint8Array.from(atob(b64), ch => ch.charCodeAt(0));
+  items = JSON.parse(new TextDecoder().decode(bytes));
+} catch(e) { document.body.innerHTML = "<p>Katalog yuklanmadi. Botda /app ni qayta bosing.</p>"; }
+
+const fmt = n => n.toString().replace(/\B(?=(\d{3})+(?!\d))/g," ") + " so'm";
+const ok = (k,v) => k==="ton" ? /^[A-Za-z0-9_\-]{40,70}$/.test(v) : /^@?[A-Za-z0-9_]{5,32}$/.test(v);
+
+function render(){
+  document.getElementById("tabs").innerHTML = Object.keys(NAMES).map(k =>
+    `<div class="tab ${k===kind?"on":""}" onclick="setKind('${k}')">${NAMES[k]}</div>`).join("");
+  document.getElementById("grid").innerHTML = items.filter(i=>i.kind===kind).map(i =>
+    `<div class="card ${sel&&sel.id===i.id?"on":""}" onclick="pick(${i.id})"><b>${i.title}</b><span>${fmt(i.price)}</span></div>`).join("");
+  document.getElementById("rcpt").placeholder = kind==="ton" ? "TON hamyon manzili" : "@username";
+  update();
+}
+function setKind(k){ kind=k; sel=null; render(); }
+function pick(id){ sel = items.find(i=>i.id===id); render(); }
+function update(){
+  const v = document.getElementById("rcpt").value.trim();
+  const valid = sel && ok(sel.kind, v);
+  document.getElementById("err").textContent = v && sel && !valid ? "Format noto'g'ri" : "";
+  if (sel) { tg.MainButton.setText(`Buyurtma berish — ${fmt(sel.price)}`);
+             valid ? tg.MainButton.show() : tg.MainButton.hide(); }
+  else tg.MainButton.hide();
+}
+document.getElementById("rcpt").addEventListener("input", update);
+tg.MainButton.onClick(() => {
+  const v = document.getElementById("rcpt").value.trim();
+  if (sel && ok(sel.kind, v)) tg.sendData(JSON.stringify({pid: sel.id, recipient: v}));
+});
+render();
+</script>
+</body>
+</html>
